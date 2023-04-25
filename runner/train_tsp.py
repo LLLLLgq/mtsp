@@ -25,7 +25,7 @@ def train_epoch(model, problem, optimizer, args, writer, device=torch.device("cp
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=32)
     for batch_id, batch in enumerate(tqdm(train_loader, disable=args.no_progress_bar)):
         batch = batch.to(device)
-        cost, log_p = model(batch)  # cost:(B) , log_p: (B)
+        cost, log_p = model.get_tsp_solution(  batch)  # cost:(B) , log_p: (B)
         baseline = torch.zeros_like(cost)
         bs_loss = 0
         if args.baseline == 'critic':

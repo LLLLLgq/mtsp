@@ -8,6 +8,7 @@ def get_config(args=None):
     )
     # Data
     parser.add_argument('--problem', default='tsp', help="the problem to solve")
+    parser.add_argument('--n_agents', default=1, type=int, help="the number of agents, only multi-agent for mtsp")
     parser.add_argument('--graph_size', default=50, type=int, help="the size of graph")
     parser.add_argument('--eval_graph_size', default=50, type=int, help="the size of evaluation graph")
     parser.add_argument('--batch_size', default=64, type=int, help="the size of batch")
@@ -23,11 +24,13 @@ def get_config(args=None):
     parser.add_argument('--encoder_normalization', default='layer', help="the normalization of encoder")
     parser.add_argument('--tanh_clipping', default=10.0, type=float, help="the clipping value for tanh")
     parser.add_argument('--node_dim', default=2, type=int, help="the dimension of node")
-    parser.add_argument('--decoder_mode', default='sample', help="the mode of decoder, sample or greedy")
+    parser.add_argument('--decoder_mode', default='sample', help="the mode of decoder, sample or greedy or ε-greedy")
+    parser.add_argument('--epsilon', default=0.1, type=float, help="the probability of random action")
+    parser.add_argument('--epsilon_decay', default=0.999, type=float, help="the decay of epsilon")
 
     # Save
     parser.add_argument('--no_save', action='store_true', help="disable saving")
-    parser.add_argument('--save_interval', default=100, type=int, help="the interval of saving, 0 for disable saving")
+    parser.add_argument('--save_epoch', default=10, type=int, help="the interval of saving, 0 for disable saving")
     parser.add_argument('--save_dir', default='save', help="the directory to save the model")
 
     # Training

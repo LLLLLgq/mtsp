@@ -3,16 +3,17 @@ from typing import NamedTuple
 import torch
 
 
-class StateTSP(NamedTuple):
+class StateMTSP(NamedTuple):
     loc: torch.Tensor  # (B, N, 2)
     dist: torch.Tensor  # (B, N, N)
 
-    first_action: torch.Tensor  # (B, 1)
-    last_action: torch.Tensor  # (B, 1)
+    first_action: torch.Tensor  # (B, A)
+    last_action: torch.Tensor  # (B, A)
     visited: torch.Tensor  # (B, N)
-    lengths: torch.Tensor  # (B, 1)
-    cur_coord: torch.Tensor  # (B, 2)
-    step: torch.Tensor  # (1)
+    lengths: torch.Tensor  # (B, A)
+    cur_coord: torch.Tensor  # (B, A, 2)
+    step: int  # (1)
+    n_agent: int # (A)
 
     def __getitem__(self, key):
         return self._replace(
@@ -24,25 +25,27 @@ class StateTSP(NamedTuple):
         )
 
     @staticmethod
-    def initialize(loc):
+    def initialize(loc, n_agent):
         B, N, _ = loc.size()
         device = loc.device
-        last_action = torch.zeros(B, 1, dtype=torch.long, device=device)
+        A = n_agent
+        last_action = torch.zeros(B, A, dtype=torch.long, device=device)
         visited = torch.zeros(B, N, dtype=torch.bool, device=device)
         visited[:, 0] = True
-        return StateTSP(
+        return StateMTSP(
             loc=loc,
             dist=torch.norm(loc[:, None, :, :] - loc[:, :, None, :], p=2, dim=-1),
             first_action=last_action,
             last_action=last_action,
             visited=visited,
-            lengths=torch.zeros(B, 1, device=device),
-            cur_coord=loc[:, 0, :],
-            step=torch.zeros(1, dtype=torch.int64, device=device)
+            lengths=torch.zeros(B, A, device=device),
+            cur_coord=loc[:, 0, :].repeat(1, A, 1),
+            step=1
         )
 
     def update(self, actions):
-        # action: (B)
+        raise NotImplementedError
+        # action: (B,A)
         cur_coord = self.loc.gather(1, actions.unsqueeze(-1).unsqueeze(-1).expand(-1, -1, self.loc.size(-1)))
         lengths = self.lengths + self.dist.gather(1, self.last_action.unsqueeze(-1).expand(-1, -1, self.dist.size(-1))) \
             .gather(2, actions.unsqueeze(-1).unsqueeze(-1)).squeeze(-1)
