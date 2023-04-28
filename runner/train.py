@@ -25,7 +25,7 @@ def train_epoch(model, problem, optimizer, args, writer, device=torch.device("cp
     train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=32)
     for batch_id, batch in enumerate(tqdm(train_loader, disable=args.no_progress_bar)):
         batch = batch.to(device)
-        cost, log_p = model.get_tsp_solution(  batch)  # cost:(B) , log_p: (B)
+        cost, log_p = model.get_tsp_solution(batch, 'tsp')  # cost:(B) , log_p: (B)
         baseline = torch.zeros_like(cost)
         bs_loss = 0
         if args.baseline == 'critic':
@@ -54,6 +54,41 @@ def train_epoch(model, problem, optimizer, args, writer, device=torch.device("cp
     print("epoch time: {}".format(finished_time - start_time))
 
 
+def train_mtsp_epoch(model, problem, optimizer, args, device=torch.device("cpu")):
+    start_time = time.time()
+    model.train()
+    model.set_decoder_mode("sample")
+    step = 0
+    train_dataset = problem.make_dataset(args.graph_size, args.epoch_size)
+    train_loader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=32)
+    for batch_id, batch in enumerate(tqdm(train_loader, disable=args.no_progress_bar)):
+        batch = batch.to(device)
+        if args.mtsp_autoregressive:
+            assignment, log_p = model.divide_nodes(batch) # assignment: (B, A, N), log_p: (B)
+        else:
+            assignment, log_p = model.classify_node(batch)
+        print(assignment)
+        sys.exit(0)
+        cost, log_p = model.get_tsp_solution(batch, 'mtsp')  # cost:(B) , log_p: (B)
+        reinforce_loss = ((cost.detach()) * log_p).mean()
+        optimizer.zero_grad()
+        reinforce_loss.backward()
+        grad_norm, grad_norms_clipped = clip_grad_norms(optimizer.param_groups, 1.0)
+        optimizer.step()
+        if args.log_interval != 0 and step % args.log_interval == 0:
+            print("grad_norm: {}".format(grad_norm))
+            print("step: {}, reinforce_loss: {}".format(step, reinforce_loss.item()))
+            # if not args.no_log:
+            #     writer.add_scalar('reinforce_loss', reinforce_loss.item(), step)
+            #     if args.use_wandb:
+            #         wandb.log({"reinforce_loss": reinforce_loss.item()})
+        step += 1
+
+    finished_time = time.time()
+    print("epoch time: {}".format(finished_time - start_time))
+
+
+
 def evaluate(model, problem, args, device):
     with torch.no_grad():
         model.eval()
@@ -63,12 +98,12 @@ def evaluate(model, problem, args, device):
         const_sum = []
         for batch in eval_loader:
             batch = batch.to(device)
-            cost, log_p = model(batch)
+            cost, log_p = model.get_tsp_solution(batch, 'tsp')
             const_sum.append(cost.mean())
     torch.cuda.empty_cache()
-    print("eval cost: {}".format(torch.stack(const_sum).mean()))
+    print("tsp cost over {} nodes: {}".format(args.eval_graph_size, torch.stack(const_sum).mean()))
     if (not args.no_log) and args.use_wandb:
-        wandb.log({"eval_cost": torch.stack(const_sum).mean()})
+        wandb.log({"tsp eval_cost over {} nodes".format(args.eval_graph_size): torch.stack(const_sum).mean()})
     return 0
 
 
@@ -86,8 +121,8 @@ def main(args):
         problem = None
         raise NotImplementedError
     args.problem = problem
-    device = torch.device("cuda:0" if not args.no_cuda else "cpu")
-
+    #device = torch.device("cuda:0" if not args.no_cuda else "cpu")
+    device = torch.device("cpu")
     # initialize model
     model = AttentionModel(args).to(device)
     params_sum = 0
@@ -95,13 +130,12 @@ def main(args):
         params_sum += p.numel()
         print('  [*] {} : {}'.format(name, p.numel()))
     print('  [*] Number of parameters: {}'.format(params_sum))
-
     # initialize baseline
 
     # initialize optimizer
     optimizer = torch.optim.Adam([{'params': model.parameters(), 'lr': args.lr_actor}])
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: args.lr_decay ** epoch)
-
+    train_mtsp_epoch(model, problem, optimizer, args, device)
     # initialize logger
     writer = None
     if not args.no_log:

@@ -5,14 +5,18 @@ from ortools.constraint_solver import pywrapcp
 import numpy as np
 
 scale = 1000
-graph_size = 200
+graph_size = 50
 
 def create_data_model():
     """Stores the data for the problem."""
     data = {}
 
     loc = np.random.uniform(0, 1, (graph_size, 2))
+    for i in range(graph_size//2):
+        if i % 2 ==0:
+            loc[i] = loc[0]
     data['distance_matrix'] = np.linalg.norm(loc[:, None, :] - loc[None, :, :], ord=2, axis=-1)*scale
+    print(data['distance_matrix'])
     # data['distance_matrix'] = [
     #     [0, 2451, 713, 1018, 1631, 1374, 2408, 213, 2571, 875, 1420, 2145, 1972],
     #     [2451, 0, 1745, 1524, 831, 1240, 959, 2596, 403, 1589, 1374, 357, 579],
