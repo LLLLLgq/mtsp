@@ -178,7 +178,7 @@ class Decoder(nn.Module):
         self.decoder = nn.Sequential(*(DecoderBlock(n_embed, n_head, n_nodes, normalization, masked=masked) for _ in range(n_blocks)
                                        ))
 
-        self.classify = nn.Sequential(
+        self.classifier = nn.Sequential(
             init_(nn.Linear(n_embed, n_embed * 4)),
             nn.GELU(),
             init_(nn.Linear(n_embed * 4, n_embed)),
@@ -194,7 +194,7 @@ class Decoder(nn.Module):
             for block in self.decoder:
                 x = block(x, enc, dist)
         # x: B N E
-        x = self.classify(x) # B N A
+        x = self.classifier(x) # B N A
         x = x.log_softmax(dim=-1)
         return x # B N A
 

@@ -9,10 +9,10 @@ def get_config(args=None):
     # Data
     parser.add_argument('--problem', default='tsp', help="the problem to solve")
     parser.add_argument('--m_problem', default='mtsp', help="the problem to solve")
-    parser.add_argument('--n_agents', default=3, type=int, help="the number of agents, only multi-agent for mtsp")
-    parser.add_argument('--graph_size', default=7, type=int, help="the size of graph")
-    parser.add_argument('--eval_graph_size', default=50, type=int, help="the size of evaluation graph")
-    parser.add_argument('--batch_size', default=1, type=int, help="the size of batch")
+    parser.add_argument('--n_agents', default=5, type=int, help="the number of agents, only multi-agent for mtsp")
+    parser.add_argument('--graph_size', default=100, type=int, help="the size of graph")
+    parser.add_argument('--eval_graph_size', default=100, type=int, help="the size of evaluation graph")
+    parser.add_argument('--batch_size', default=1000, type=int, help="the size of batch")
     parser.add_argument('--epoch_size', default=1000000, type=int, help="the size of epoch")
     parser.add_argument('--eval_size', default=10000, type=int, help="the size of evaluation")
 
@@ -25,13 +25,13 @@ def get_config(args=None):
     parser.add_argument('--encoder_normalization', default='layer', help="the normalization of encoder")
     parser.add_argument('--tanh_clipping', default=10.0, type=float, help="the clipping value for tanh")
     parser.add_argument('--node_dim', default=2, type=int, help="the dimension of node")
-    parser.add_argument('--mtsp_autoregressive', action='store_false', help="whether use autoregressive model for mtsp")
+    parser.add_argument('--mtsp_autoregressive', action='store_true', help="whether use autoregressive model for mtsp")
     parser.add_argument('--decoder_mode', default='sample', help="the mode of decoder, sample or greedy or ε-greedy")
     parser.add_argument('--dec_actor', action='store_true', help="whether use attention model as actor")
     parser.add_argument('--epsilon', default=0.1, type=float, help="the probability of random action")
     parser.add_argument('--epsilon_decay', default=0.999, type=float, help="the decay of epsilon")
     parser.add_argument('--allocate_mode', default='sample', help="the mode of allocate, sample or greedy")
-    parser.add_argument('--allocate_order', default='node first', help="the order of allocate, equally / node first / "
+    parser.add_argument('--allocate_order', default='equally', help="the order of allocate, equally / node first / "
                                                                     "edge first / agent first")
     parser.add_argument('--classify_mode', default='sample', help="the mode of gather, sample or greedy")
 
@@ -44,7 +44,8 @@ def get_config(args=None):
     parser.add_argument('--lr_actor', default=1e-4, type=float, help="the learning rate")
     parser.add_argument('--lr_decay', default=1.0, type=float, help="the learning rate decay")
     parser.add_argument('--lr_critic', default=1e-4, type=float, help="the learning rate")
-    parser.add_argument('--n_epoch', default=100, type=int, help="the number of epochs")
+
+    parser.add_argument('--n_epoch', default=50, type=int, help="the number of epochs")
     parser.add_argument('--n_mtsp_epoch', default=100, type=int, help="the number of epochs")
     parser.add_argument('--ema_beta', default=0.8, type=float, help="the exponential moving average beta")
     parser.add_argument('--eval_epoch', default=1, type=int, help="the interval of evaluation")
@@ -60,7 +61,7 @@ def get_config(args=None):
                         help='Significance in the t-test for updating rollout baseline')
 
     # Misc
-    parser.add_argument('--seed', default=998244353, type=int, help="the random seed")
+    parser.add_argument('--seed', default=123456, type=int, help="the random seed")
     parser.add_argument('--no_cuda', action='store_true', help="disable cuda")
     parser.add_argument('--use_wandb', action='store_false', help="use wandb")
     parser.add_argument('--use_lr_scheduler', action='store_false', help="use learning rate scheduler")
