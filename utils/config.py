@@ -14,7 +14,7 @@ def get_config(args=None):
     parser.add_argument('--eval_graph_size', default=100, type=int, help="the size of evaluation graph")
     parser.add_argument('--batch_size', default=1000, type=int, help="the size of batch")
     parser.add_argument('--epoch_size', default=1000000, type=int, help="the size of epoch")
-    parser.add_argument('--eval_size', default=10000, type=int, help="the size of evaluation")
+    parser.add_argument('--eval_size', default=20000, type=int, help="the size of evaluation")
 
     # Model
     parser.add_argument('--n_layers', default=3, type=int,
@@ -40,18 +40,22 @@ def get_config(args=None):
     parser.add_argument('--save_epoch', default=10, type=int, help="the interval of saving, 0 for disable saving")
     parser.add_argument('--save_dir', default='save', help="the directory to save the model")
 
+    # Load
+    parser.add_argument('--load', action='store_true', help="enable load the model")
+    parser.add_argument('--load_path', default=None, help="the path to load the model")
+
     # Training
+    parser.add_argument('--n_epoch', default=50, type=int, help="the number of epochs")
+    parser.add_argument('--n_mtsp_epoch', default=100, type=int, help="the number of epochs")
     parser.add_argument('--lr_actor', default=1e-4, type=float, help="the learning rate")
     parser.add_argument('--lr_decay', default=1.0, type=float, help="the learning rate decay")
     parser.add_argument('--lr_critic', default=1e-4, type=float, help="the learning rate")
-
-    parser.add_argument('--n_epoch', default=50, type=int, help="the number of epochs")
-    parser.add_argument('--n_mtsp_epoch', default=100, type=int, help="the number of epochs")
     parser.add_argument('--ema_beta', default=0.8, type=float, help="the exponential moving average beta")
     parser.add_argument('--eval_epoch', default=1, type=int, help="the interval of evaluation")
     parser.add_argument('--log_interval', default=100, type=int, help="the interval of logging")
-    parser.add_argument('--load_dir', default='save', help="the directory to load the model")
     parser.add_argument('--log_dir', default='log', help="the directory to save the log")
+    parser.add_argument('--train_tsp', action='store_true', help="whether train tsp")
+    parser.add_argument('--train_mtsp', action='store_true', help="whether train mtsp")
 
     # Baseline
     parser.add_argument('--baseline', default='critic', help="the baseline to use")
@@ -61,7 +65,7 @@ def get_config(args=None):
                         help='Significance in the t-test for updating rollout baseline')
 
     # Misc
-    parser.add_argument('--seed', default=123456, type=int, help="the random seed")
+    parser.add_argument('--seed', default=998244353, type=int, help="the random seed")
     parser.add_argument('--no_cuda', action='store_true', help="disable cuda")
     parser.add_argument('--use_wandb', action='store_false', help="use wandb")
     parser.add_argument('--use_lr_scheduler', action='store_false', help="use learning rate scheduler")

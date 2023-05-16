@@ -144,6 +144,7 @@ class AttentionModel(nn.Module):
         if self.classify_mode == 'greedy':
             actions = torch.argmax(prob, dim=-1)  # [batch_size, n_nodes-1]
         elif self.classify_mode == 'sample':
+
             distri = Categorical(probs=prob.exp())
             actions = distri.sample()  # [batch_size, n_nodes-1]
         else:

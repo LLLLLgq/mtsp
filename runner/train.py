@@ -56,7 +56,7 @@ def train_epoch(model, problem, optimizer, args, writer, device=torch.device("cp
     print("epoch time: {}".format(finished_time - start_time))
 
 
-def train_mtsp_epoch(model, problem, optimizer, args, device=torch.device("cpu")):
+def train_mtsp_epoch(model, problem, optimizer, args, device=torch.device("cpu"), baseline = 0):
     start_time = time.time()
     model.train()
     model.set_tsp_decoder_mode("greedy")
@@ -77,14 +77,14 @@ def train_mtsp_epoch(model, problem, optimizer, args, device=torch.device("cpu")
             with torch.no_grad():
                 cost, _ = model.get_tsp_solution(new_batch)  # cost:(B) , log_p: (B)
             mtsp_cost = torch.max(mtsp_cost, cost)
-        reinforce_loss = ((mtsp_cost.detach()) * log_p).mean()
+        reinforce_loss = ((mtsp_cost.detach() - baseline) * log_p).mean()
         optimizer.zero_grad()
         reinforce_loss.backward()
         grad_norm, grad_norms_clipped = clip_grad_norms(optimizer.param_groups, 1.0)
         optimizer.step()
         if not args.no_log:
             wandb.log({"mtsp_reinforce_loss": reinforce_loss.item(),
-                       "mtsp_cost": mtsp_cost.mean().item(),
+                       "mtsp_cost over {} nodes {} agents".format(args.graph_size, args.n_agents): mtsp_cost.mean().item(),
                        "tsp_cost": tsp_cost.mean().item()})
         step += 1
 
@@ -117,21 +117,22 @@ def evaluate(model, problem, args, device):
                 mtsp_cost = torch.max(mtsp_cost, cost)
             mtsp_cost_sum.append(mtsp_cost)
     torch.cuda.empty_cache()
+    mtsp_baseline = torch.stack(mtsp_cost_sum).mean()
     print("tsp cost over {} nodes: {}".format(args.eval_graph_size, torch.stack(const_sum).mean()))
     print("mtsp cost over {} nodes: {}".format(args.eval_graph_size, torch.stack(mtsp_cost_sum).mean()))
     if (not args.no_log) and args.use_wandb:
         wandb.log({"tsp eval_cost over {} nodes".format(args.eval_graph_size): torch.stack(const_sum).mean()})
         wandb.log({"mtsp eval_cost over {} nodes {} agents".format(args.eval_graph_size, args.n_agents): torch.stack(
             mtsp_cost_sum).mean()})
-    return 0
+    return mtsp_baseline
 
 
 def save():
     raise NotImplementedError
 
 
-def main(args):
-    args = get_config(args)
+def preparation(args):
+    # disc
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
     if args.problem == 'tsp':
@@ -142,9 +143,11 @@ def main(args):
     args.problem = problem
     device = torch.device("cuda:0" if not args.no_cuda else "cpu")
 
+    # prepare_dir
     run_dir = Path(os.path.split(os.path.dirname(os.path.abspath(__file__)))[
                        0] + "/results") / "graph{}".format(args.graph_size) / "agents{}".format(args.n_agents)
-
+    if not run_dir.exists():
+        os.makedirs(str(run_dir))
     exst_run_nums = [int(str(folder.name).split('run')[1]) for folder in run_dir.iterdir() if
                      str(folder.name).startswith('run')]
     if len(exst_run_nums) == 0:
@@ -154,6 +157,14 @@ def main(args):
     run_dir = run_dir / curr_run
     if not run_dir.exists():
         os.makedirs(str(run_dir))
+
+    return device, run_dir, problem
+
+
+def main(args):
+    args = get_config(args)
+    device, run_dir, problem = preparation(args)
+
     # initialize model
     model = AttentionModel(args).to(device)
     params_sum = 0
@@ -161,11 +172,21 @@ def main(args):
         params_sum += p.numel()
         # print('  [*] {} : {}'.format(name, p.numel()))
     print('  [*] Number of parameters: {}'.format(params_sum))
-    # initialize baseline
 
     # initialize optimizer
     optimizer = torch.optim.Adam([{'params': model.parameters(), 'lr': args.lr_actor}])
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: args.lr_decay ** epoch)
+
+    # load model
+    # if (args.load_path is not None) and args.load:
+    #     if not os.path.exists(args.load_path):
+    #         raise FileNotFoundError("load_path {} does not exist".format(args.load_path))
+    #     checkpoint = torch.load(args.load_path)
+    #     model.load_state_dict(checkpoint['model_state_dict'])
+    #     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+    #     lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+    #     print("successfully loaded model from {}".format(args.load_path))
+
     # initialize logger
     writer = None
     if not args.no_log:
@@ -177,10 +198,21 @@ def main(args):
             wandb.init(project='TSP' + str(args.graph_size), config=args)
             wandb.watch(model)
 
+    # train
+    if not args.train_tsp:
+        args.n_epoch = 0
+    if not args.train_mtsp:
+        args.n_mtsp_epoch = 0
+    mtsp_baseline = 1e9+7
     for epoch in range(args.n_epoch + args.n_mtsp_epoch):
         print("Epoch: {}, lr: {}, Step;{}".format(epoch,
                                                   lr_scheduler.get_last_lr(),
                                                   epoch * (args.epoch_size // args.batch_size)))
+        # evaluate
+        if args.eval_epoch != 0 and epoch % args.eval_epoch == 0:
+            mtsp_cost = evaluate(model, problem, args, device)
+            mtsp_baseline = min(mtsp_cost, mtsp_baseline)
+
         if epoch < args.n_epoch:
             train_epoch(model,
                         problem,
@@ -191,10 +223,17 @@ def main(args):
         else:
             if epoch == args.n_epoch:
                 model.set_freeze_encoder()
-            train_mtsp_epoch(model, problem, optimizer, args, device)
+                if (args.load_path is not None) and args.load:
+                    if not os.path.exists(args.load_path):
+                        raise FileNotFoundError("load_path {} does not exist".format(args.load_path))
+                    checkpoint = torch.load(args.load_path)
+                    model.load_state_dict(checkpoint['model_state_dict'])
+                    optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+                    lr_scheduler.load_state_dict(checkpoint['lr_scheduler_state_dict'])
+                    print("successfully loaded model from {}".format(args.load_path))
+            train_mtsp_epoch(model, problem, optimizer, args, device, mtsp_baseline)
         lr_scheduler.step()
-        if args.eval_epoch != 0 and epoch % args.eval_epoch == 0:
-            evaluate(model, problem, args, device)
+
         if not args.no_save and (epoch % args.save_epoch == 0 or epoch == args.n_epoch - 1):
             print('saving model at epoch {} .................'.format(epoch))
             save_dir = run_dir / 'models'

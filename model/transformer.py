@@ -28,7 +28,7 @@ class Attention(nn.Module):
         self.value = init_(nn.Linear(n_embed, n_embed))
         self.proj = init_(nn.Linear(n_embed, n_embed))
 
-    def forward(self, q, k, v, d=None):
+    def forward(self, q, k, v, d=None, mask_ratio=0.3):
         B, N, E = q.shape
 
         q = self.query(q).view(B, N, self.n_head, E // self.n_head).permute(0, 2, 1, 3)  # B, H, N, E//H
@@ -37,6 +37,11 @@ class Attention(nn.Module):
 
         # B, H, N, N
         att = (q @ k.transpose(-1, -2)) * (1.0 / math.sqrt(k.size(-1)))
+
+        # drop node https://arxiv.org/abs/1905.10990
+        if self.training:
+            m_r = torch.ones_like(att) * mask_ratio
+            att = att + torch.bernoulli(m_r) * 1e-12
 
         if d is not None:
             # D: B, N, N   dist matrix
